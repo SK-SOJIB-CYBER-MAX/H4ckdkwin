@@ -1,0 +1,554 @@
+আপনার স্ক্রিপ্টে আগে থেকেই লগিন সেকশনের ডিজাইন করা ছিল, কিন্তু সেটি একটি ফেক সার্ভার রিকোয়েস্ট (fetch) ব্যবহার করছিল। আমি সেই অংশটি পরিবর্তন করে সরাসরি ক্লায়েন্ট-সাইড পাসওয়ার্ড ভেরিফিকেশন যোগ করে দিয়েছি।
+এখন পাসওয়ার্ড **sojib2x** দিলে তবেই প্রেডিকশন প্যানেল ওপেন হবে, নাহলে "Wrong Password!" দেখাবে।
+নিচে সম্পূর্ণ আপডেট করা কোডটি দেওয়া হলো:
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FX Hack DkWin-H4ck</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+width: 100vw; height: 100vh;
+overflow: hidden;
+background: #000;
+font-family: 'Segoe UI', sans-serif;
+}
+#site-frame {
+width: 100%; height: 100%;
+border: none; display: block;
+}
+/* Wrapper holds box + neon ring together */
+#overlay-wrapper {
+position: fixed;
+top: 50%; left: 50%;
+transform: translate(-50%, -50%);
+z-index: 1000;
+width: 215px;
+}
+/* Two racing neon streaks on the border */
+.neon-ring {
+position: absolute;
+inset: -3px;
+border-radius: 17px;
+pointer-events: none;
+z-index: 2;
+}
+.neon-ring svg { width: 100%; height: 100%; overflow: visible; }
+.streak-1 {
+stroke: url(#grad1); stroke-width: 3; fill: none;
+stroke-linecap: round;
+stroke-dasharray: 55 1000;
+animation: runStreak1 2.2s linear infinite;
+filter: drop-shadow(0 0 4px #00ffe0) drop-shadow(0 0 9px #00ffe088);
+}
+.streak-2 {
+stroke: url(#grad2); stroke-width: 3; fill: none;
+stroke-linecap: round;
+stroke-dasharray: 55 1000;
+animation: runStreak2 2.2s linear infinite;
+filter: drop-shadow(0 0 4px #ff00cc) drop-shadow(0 0 9px #ff00cc88);
+}
+@keyframes runStreak1 {
+from { stroke-dashoffset: 0; }
+to { stroke-dashoffset: -1060; }
+}
+@keyframes runStreak2 {
+from { stroke-dashoffset: -530; }
+to { stroke-dashoffset: -1590; }
+}
+#overlay-box {
+position: relative;
+z-index: 1;
+width: 215px;
+background: radial-gradient(ellipse at 50% 50%, #1c1535 0%, #0d0b1a 70%, #080610 100%);
+border-radius: 14px;
+padding: 13px 13px 12px;
+cursor: grab;
+user-select: none;
+border: 1.5px solid rgba(255,255,255,0.06);
+box-shadow:
+inset 0 0 30px rgba(100,0,255,0.10),
+inset 0 0 12px rgba(0,200,255,0.07),
+0 0 20px rgba(0,0,0,0.8);
+}
+#overlay-box:active { cursor: grabbing; }
+/* TITLES */
+.title-main {
+text-align: center;
+font-size: 14.5px; font-weight: 800;
+letter-spacing: 1px;
+color: #00ffe0;
+text-shadow: 0 0 7px #00ffe066;
+margin-bottom: 2px;
+}
+.title-sub {
+text-align: center;
+font-size: 11px; font-weight: 700;
+color: #ff00cc;
+text-shadow: 0 0 5px #ff00cc66;
+margin-bottom: 5px;
+letter-spacing: 0.5px;
+}
+/* PERIOD */
+.period-line {
+text-align: center;
+font-size: 11px;
+color: #ffe600;
+font-weight: 700;
+margin-bottom: 7px;
+letter-spacing: 0.5px;
+text-shadow: 0 0 8px rgba(255,230,0,0.55);
+background: rgba(255,230,0,0.07);
+border-radius: 5px;
+padding: 2px 5px;
+}
+/* LOGIN */
+#login-section {
+display: flex; flex-direction: column; align-items: center;
+}
+.password-input {
+width: 75%;
+background: #2a2a3e;
+border: 1.5px solid #3a3a5e;
+border-radius: 8px;
+padding: 7px 10px;
+color: #ccc; font-size: 12px;
+outline: none; margin-bottom: 7px;
+transition: border-color 0.2s;
+text-align: center;
+}
+.password-input:focus { border-color: #00ffe055; }
+.password-input::placeholder { color: #555; }
+.error-msg {
+text-align: center; color: #ff4466;
+font-size: 11px; margin-bottom: 6px; font-weight: 600;
+}
+.btn-login {
+width: 75%;
+background: linear-gradient(135deg, #00e5cc, #00bfff);
+color: #000; font-weight: 800; font-size: 12.5px;
+border: none; border-radius: 8px; padding: 7px;
+cursor: pointer; margin-bottom: 9px;
+transition: opacity 0.2s, transform 0.1s;
+box-shadow: 0 2px 8px rgba(0,200,255,0.18);
+}
+.btn-login:hover { opacity: 0.88; }
+.btn-login:active { transform: scale(0.97); }
+/* PREDICTION */
+#pred-section { display: none; }
+.next-signal {
+text-align: center;
+font-size: 12px; font-weight: 700;
+color: #ffe600; margin-bottom: 7px;
+}
+.next-signal span { color: #fff; }
+.prediction-label {
+text-align: center;
+font-size: 13px; font-weight: 600;
+color: #ccc; margin-bottom: 7px;
+}
+.pred-value { font-weight: 800; font-size: 15px; }
+.pred-small { color: #00bfff; }
+.pred-big { color: #ff4444; }
+.pred-number-wrap {
+display: flex; justify-content: center;
+margin-bottom: 10px;
+}
+.pred-number-box {
+width: 32%;
+border-radius: 7px;
+padding: 5px 0;
+text-align: center;
+font-size: 16px; font-weight: 900;
+color: #fff;
+transition: background 0.4s, box-shadow 0.4s;
+}
+.pred-number-box.green {
+background: linear-gradient(135deg, #1db954, #0f9b3e);
+box-shadow: 0 0 8px rgba(0,255,80,0.2);
+}
+.pred-number-box.red {
+background: linear-gradient(135deg, #e63946, #9b1b1b);
+box-shadow: 0 0 8px rgba(255,50,50,0.2);
+}
+/* TELEGRAM */
+.btn-telegram {
+width: 100%;
+background: linear-gradient(135deg, #1a8cff, #0055cc);
+color: #fff; font-weight: 700; font-size: 12px;
+border: none; border-radius: 8px; padding: 8px;
+cursor: pointer; text-decoration: none;
+display: block; text-align: center;
+transition: opacity 0.2s, transform 0.1s;
+box-shadow: 0 2px 8px rgba(0,100,255,0.18);
+}
+.btn-telegram:hover { opacity: 0.88; }
+.btn-telegram:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+<iframe id="site-frame" src="https://dkwin9.com/#/register?invitationCode=71545384556"></iframe>
+<div id="overlay-wrapper">
+<!-- Neon racing streaks - drawn by JS on canvas -->
+<canvas id="neon-canvas" style="position:absolute;inset:-3px;border-radius:17px;pointer-events:none;z-index:2;"></canvas>
+<div id="overlay-box">
+<div class="title-main">FX TRADER HACK</div>
+<div class="title-sub">WINGO VIP MOD</div>
+<!-- LOGIN -->
+<div id="login-section">
+<input class="password-input" type="password" id="pw-input" placeholder="Enter Password" autocomplete="off" />
+<div class="error-msg" id="error-msg" style="display:none;">Wrong Password!</div>
+<button class="btn-login" onclick="doLogin()">Login</button>
+</div>
+<!-- PREDICTION -->
+<div id="pred-section">
+<div class="period-line" id="period-display">-</div>
+<div class="next-signal">Next Signal: <span id="countdown">30s</span></div>
+<div class="prediction-label">Prediction: <span class="pred-value pred-small" id="pred-label">SMALL</span></div>
+<div class="pred-number-wrap" style="position:relative;">
+<canvas id="num-canvas" style="position:absolute;inset:-3px;border-radius:10px;pointer-events:none;z-index:2;width:calc(100% + 6px);height:calc(100% + 6px);"></canvas>
+<div class="pred-number-box green" id="pred-box">1</div>
+</div>
+</div>
+<a class="btn-telegram" href="https://t.me/FX_trader_community" target="_blank">
+&#128226; Join Telegram Channel
+</a>
+</div><!-- end overlay-box -->
+</div><!-- end overlay-wrapper -->
+<script>
+// ── Login ──
+function doLogin() {
+    const pw = document.getElementById('pw-input').value.trim();
+    if (!pw) { shake(); return; }
+    
+    // পাসওয়ার্ড চেক করা হচ্ছে
+    if (pw === "sojib2x") {
+        showPrediction();
+    } else {
+        document.getElementById('error-msg').style.display = 'block';
+        shake();
+        setTimeout(() => document.getElementById('error-msg').style.display = 'none', 2000);
+    }
+}
+
+document.getElementById('pw-input').addEventListener('keydown', e => {
+if (e.key === 'Enter') doLogin();
+});
+
+function shake() {
+const inp = document.getElementById('pw-input');
+inp.style.borderColor = '#ff4466';
+setTimeout(() => inp.style.borderColor = '#3a3a5e', 1500);
+}
+
+// ── Show prediction panel ──
+function showPrediction() {
+document.getElementById('login-section').style.display = 'none';
+document.getElementById('pred-section').style.display = 'block';
+startPrediction();
+}
+
+// ── Prediction + Period ──
+let currentWin = -1;
+let lastIssuePeriod = null;
+
+// Fetch real period from DKWin API
+async function fetchRealPeriod() {
+try {
+const ts = Date.now();
+const res = await fetch(`https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json?ts=${ts}`);
+if (!res.ok) return null;
+const data = await res.json();
+if (data?.data?.list && data.data.list.length > 0) {
+const latest = data.data.list[0];
+const issueNum = latest.issueNumber || latest.issue || latest.period;
+// Next period = current + 1
+const nextPeriod = (BigInt(issueNum) + 1n).toString();
+return nextPeriod;
+}
+} catch(e) {}
+return null;
+}
+
+function pad(n, len) { return String(n).padStart(len, '0'); }
+
+function startPrediction() {
+async function tick() {
+const now = new Date();
+const totalSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+const winIdx = Math.floor(totalSec / 30);
+const remaining = 30 - (totalSec % 30);
+document.getElementById('countdown').textContent = remaining + 's';
+
+// New 30s window → fetch real period + new random result
+if (winIdx !== currentWin) {
+currentWin = winIdx;
+// Fetch real period from API
+const realPeriod = await fetchRealPeriod();
+if (realPeriod) {
+document.getElementById('period-display').textContent = realPeriod;
+lastIssuePeriod = realPeriod;
+} else if (lastIssuePeriod) {
+// fallback: increment last known period
+try {
+const next = (BigInt(lastIssuePeriod) + 1n).toString();
+document.getElementById('period-display').textContent = next;
+lastIssuePeriod = next;
+} catch(e) {}
+}
+
+const isSmall = Math.random() < 0.5;
+const num = isSmall
+? Math.floor(Math.random() * 5)
+: Math.floor(Math.random() * 5) + 5;
+const lbl = document.getElementById('pred-label');
+const box = document.getElementById('pred-box');
+box.textContent = num;
+if (isSmall) {
+lbl.textContent = 'SMALL'; lbl.className = 'pred-value pred-small';
+box.className = 'pred-number-box green';
+if (window.setNumColor) window.setNumColor(true);
+} else {
+lbl.textContent = 'BIG'; lbl.className = 'pred-value pred-big';
+box.className = 'pred-number-box red';
+if (window.setNumColor) window.setNumColor(false);
+}
+}
+}
+tick();
+setInterval(tick, 1000);
+}
+
+// ── Neon border: two full tracks, color-changing only ──
+(function() {
+function initCanvas() {
+const wrapper = document.getElementById('overlay-wrapper');
+const canvas = document.getElementById('neon-canvas');
+if (!wrapper || !canvas) return;
+
+function resize() {
+const r = wrapper.getBoundingClientRect();
+canvas.width = r.width + 10;
+canvas.height = r.height + 10;
+canvas.style.left = '-5px';
+canvas.style.top = '-5px';
+canvas.style.width = canvas.width + 'px';
+canvas.style.height = canvas.height + 'px';
+}
+resize();
+new ResizeObserver(resize).observe(wrapper);
+
+const ctx = canvas.getContext('2d');
+const R = 18;
+
+function drawRing(w, h, offset, lineW, color, blur) {
+const o = offset;
+ctx.save();
+ctx.beginPath();
+ctx.moveTo(o + R, o);
+ctx.lineTo(w - o - R, o);
+ctx.arcTo(w-o, o, w-o, o+R, R);
+ctx.lineTo(w-o, h-o-R);
+ctx.arcTo(w-o, h-o, w-o-R, h-o, R);
+ctx.lineTo(o+R, h-o);
+ctx.arcTo(o, h-o, o, h-o-R, R);
+ctx.lineTo(o, o+R);
+ctx.arcTo(o, o, o+R, o, R);
+ctx.closePath();
+
+ctx.setLineDash([]);
+ctx.lineWidth = lineW;
+ctx.strokeStyle = color;
+ctx.shadowColor = color;
+ctx.shadowBlur = blur;
+ctx.stroke();
+ctx.restore();
+}
+
+const cols = [
+'#00ffe0','#00bfff','#7b2fff','#ff00cc',
+'#ffe600','#ff8800','#00ff80','#ff4444','#ff0080','#ffffff'
+];
+
+function randCol() { return cols[Math.floor(Math.random()*cols.length)]; }
+
+function lerpHex(a, b, t) {
+const ah=parseInt(a.slice(1),16), bh=parseInt(b.slice(1),16);
+const [ar,ag,ab2]=[(ah>>16)&255,(ah>>8)&255,ah&255];
+const [br,bg,bb] =[(bh>>16)&255,(bh>>8)&255,bh&255];
+return '#'+[
+Math.round(ar+(br-ar)*t),
+Math.round(ag+(bg-ag)*t),
+Math.round(ab2+(bb-ab2)*t)
+].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+let t1cur=randCol(), t1nxt=randCol();
+let t2cur=randCol(), t2nxt=randCol();
+let phase=0, cycleLen=80;
+
+function animate() {
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+const w=canvas.width, h=canvas.height;
+phase = (phase+1) % cycleLen;
+const blend = phase / cycleLen;
+
+if (phase === 0) {
+t1cur=t1nxt; t1nxt=randCol();
+t2cur=t2nxt; t2nxt=randCol();
+}
+
+const c1 = lerpHex(t1cur, t1nxt, blend);
+const c2 = lerpHex(t2cur, t2nxt, blend);
+
+// Single track only
+drawRing(w, h, 2, 12, c1+'18', 0);
+drawRing(w, h, 2, 7, c1+'55', 18);
+drawRing(w, h, 2, 3, c1, 30);
+
+requestAnimationFrame(animate);
+}
+animate();
+}
+
+if (document.readyState === 'loading') {
+document.addEventListener('DOMContentLoaded', initCanvas);
+} else {
+initCanvas();
+}
+})();
+
+// ── Number box border streak ──
+(function() {
+let numColor = '#00ff80'; // green by default
+let numT = 0;
+let numCanvas, numCtx, numW, numH, numR = 10;
+
+function initNumCanvas() {
+numCanvas = document.getElementById('num-canvas');
+if (!numCanvas) return;
+const wrap = numCanvas.parentElement;
+const box = document.getElementById('pred-box');
+if (!box) return;
+
+function resize() {
+const r = box.getBoundingClientRect();
+numCanvas.width = r.width + 6;
+numCanvas.height = r.height + 6;
+}
+resize();
+numCtx = numCanvas.getContext('2d');
+new ResizeObserver(resize).observe(box);
+
+animNum();
+}
+
+function getPerim(w, h, r) {
+return 2*(w - 2*r) + 2*(h - 2*r) + 2*Math.PI*r;
+}
+
+function drawNumStreak(progress, color, length) {
+const w = numCanvas.width, h = numCanvas.height;
+const perim = getPerim(w, h, numR);
+const dist = (progress * perim) % perim;
+
+numCtx.save();
+numCtx.beginPath();
+numCtx.moveTo(numR, 0);
+numCtx.lineTo(w - numR, 0);
+numCtx.arcTo(w, 0, w, numR, numR);
+numCtx.lineTo(w, h - numR);
+numCtx.arcTo(w, h, w - numR, h, numR);
+numCtx.lineTo(numR, h);
+numCtx.arcTo(0, h, 0, h - numR, numR);
+numCtx.lineTo(0, numR);
+numCtx.arcTo(0, 0, numR, 0, numR);
+numCtx.closePath();
+
+// soft glow
+numCtx.lineWidth = 7;
+numCtx.lineDashOffset = -dist;
+numCtx.setLineDash([length, perim]);
+numCtx.strokeStyle = color + '44';
+numCtx.shadowColor = color;
+numCtx.shadowBlur = 14;
+numCtx.stroke();
+
+// bright core
+numCtx.lineWidth = 2.5;
+numCtx.strokeStyle = color;
+numCtx.shadowBlur = 18;
+numCtx.stroke();
+numCtx.restore();
+}
+
+function animNum() {
+if (!numCanvas || !numCtx) return;
+numCtx.clearRect(0, 0, numCanvas.width, numCanvas.height);
+numT += 0.022;
+drawNumStreak(numT % 1, numColor, 50);
+drawNumStreak((numT + 0.5) % 1, numColor, 50);
+requestAnimationFrame(animNum);
+}
+
+// Expose color setter so prediction logic can update it
+window.setNumColor = function(isGreen) {
+numColor = isGreen ? '#00ff80' : '#ff4444';
+};
+
+if (document.readyState === 'loading') {
+document.addEventListener('DOMContentLoaded', initNumCanvas);
+} else {
+setTimeout(initNumCanvas, 100);
+}
+})();
+
+// ── Draggable (drag wrapper) ──
+const box = document.getElementById('overlay-box');
+const dragEl = document.getElementById('overlay-wrapper');
+let isDragging = false, startX, startY, startLeft, startTop;
+
+box.addEventListener('mousedown', startDrag);
+box.addEventListener('touchstart', startDrag, { passive: true });
+
+function startDrag(e) {
+if (['INPUT','BUTTON','A'].includes(e.target.tagName)) return;
+isDragging = true;
+const rect = dragEl.getBoundingClientRect();
+dragEl.style.transform = 'none';
+dragEl.style.left = rect.left + 'px'; dragEl.style.top = rect.top + 'px';
+startLeft = rect.left; startTop = rect.top;
+startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+document.addEventListener('mousemove', onDrag);
+document.addEventListener('touchmove', onDrag, { passive: false });
+document.addEventListener('mouseup', stopDrag);
+document.addEventListener('touchend', stopDrag);
+}
+
+function onDrag(e) {
+if (!isDragging) return;
+if (e.type === 'touchmove') e.preventDefault();
+const cx = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+const cy = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+dragEl.style.left = Math.max(0, Math.min(startLeft + cx - startX, window.innerWidth - dragEl.offsetWidth)) + 'px';
+dragEl.style.top = Math.max(0, Math.min(startTop + cy - startY, window.innerHeight - dragEl.offsetHeight)) + 'px';
+}
+
+function stopDrag() {
+isDragging = false;
+document.removeEventListener('mousemove', onDrag);
+document.removeEventListener('touchmove', onDrag);
+document.removeEventListener('mouseup', stopDrag);
+document.removeEventListener('touchend', stopDrag);
+}
+</script>
+</body>
+</html>
+
+```
